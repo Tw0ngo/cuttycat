@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cuttycat
+GenericName=Track Splitter
+Comment=Split a full album, mix or playlist rip into tracks at the gaps
+Exec=cuttycat %f
+Icon=cuttycat
+Terminal=false
+Categories=AudioVideo;Audio;
+MimeType=audio/mpeg;audio/flac;audio/ogg;audio/x-opus+ogg;audio/mp4;audio/x-wav;audio/x-ape;audio/x-wavpack;
+StartupWMClass=cuttycat
