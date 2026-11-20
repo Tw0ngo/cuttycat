@@ -32,7 +32,6 @@ tracklist or a video's chapters, and exports them with tags and cover.
 | Windows (installer, recommended) | [cuttycat_install.exe](https://github.com/Tw0ngo/cuttycat/releases/latest/download/cuttycat_install.exe) |
 | Windows (portable, no install) | [cuttycat-portable.zip](https://github.com/Tw0ngo/cuttycat/releases/latest/download/cuttycat-portable.zip) |
 | Linux (x86_64, single file) | [cuttycat](https://github.com/Tw0ngo/cuttycat/releases/latest/download/cuttycat) |
-| Arch Linux | [cuttycat-git](https://aur.archlinux.org/packages/cuttycat-git) in the AUR |
 
 These links always point to the newest version. Older versions are on the
 [releases page](https://github.com/Tw0ngo/cuttycat/releases).
@@ -64,22 +63,11 @@ Requires ffmpeg:
 ```sh
 sudo apt install ffmpeg      # Debian, Ubuntu, Mint
 sudo dnf install ffmpeg      # Fedora
+sudo pacman -S ffmpeg        # Arch, Manjaro
 sudo zypper install ffmpeg   # openSUSE
 ```
 
-### Arch Linux (AUR)
-
-```sh
-yay -S cuttycat-git      # or: paru -S cuttycat-git
-```
-
-Without an AUR helper:
-
-```sh
-git clone https://aur.archlinux.org/cuttycat-git.git
-cd cuttycat-git
-makepkg -si
-```
+An AUR package for Arch Linux will follow once AUR registration is open again.
 
 ## Install from source
 

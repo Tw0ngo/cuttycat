@@ -7,7 +7,7 @@ program, so a fix or feature goes into `cuttycat/` once and every version gets i
 |---|---|---|
 | Linux standalone `cuttycat` | `build-standalone.sh` | uses `cuttycat.spec`, which leaves out the parts of Qt Cuttycat doesn't use |
 | Windows `cuttycat_install.exe` + `cuttycat-portable.zip` | `build-windows.ps1` | uses `cuttycat.spec`, adds ffmpeg from `ffmpeg/`, installer from `windows/cuttycat.iss` |
-| Arch AUR `cuttycat-git` | `aur/PKGBUILD` | builds from the git repository, uses Arch's PySide6 / numpy / ffmpeg |
+| Arch AUR `cuttycat-git` (not published yet, AUR registration is closed) | `aur/PKGBUILD` | builds from the git repository, uses Arch's PySide6 / numpy / ffmpeg |
 | pip / pipx | `pyproject.toml` | |
 
 ## Making a release
