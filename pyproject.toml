@@ -20,7 +20,7 @@ all = ["yt-dlp", "mutagen"]
 cuttycat = "cuttycat.app:main"
 
 [tool.setuptools]
-packages = ["cuttycat", "cuttycat.assets", "cuttycat.assets.fonts"]
+packages = ["cuttycat", "cuttycat.window", "cuttycat.assets", "cuttycat.assets.fonts"]
 
 [tool.setuptools.dynamic]
 version = {attr = "cuttycat.__version__"}
