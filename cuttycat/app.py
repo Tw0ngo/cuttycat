@@ -52,6 +52,7 @@ except ImportError:
 APP = "Cuttycat"
 DATA = Path(__file__).resolve().parent / "assets"
 UA = "Cuttycat/1.0"
+KOFI_URL = "https://ko-fi.com/twongo/?hidefeed=true&widget=true&embed=true"
 EDGE = 5.0            # ignore gaps this close to start/end (seconds)
 SR, BLK = 8000, 80    # analysis sample rate, block size -> 100 envelope values/s
 AUDIO_EXT = ["*.mp3", "*.flac", "*.ogg", "*.opus", "*.m4a", "*.aac", "*.wav",
@@ -79,6 +80,12 @@ def keep(thread):
     thread.finished.connect(lambda: _THREADS.discard(thread))
     thread.start()
     return thread
+
+
+# Windows: no console window popping up for every ffmpeg call.
+NOWIN = dict(creationflags=subprocess.CREATE_NO_WINDOW) if sys.platform == "win32" else {}
+# Text output of ffprobe/yt-dlp is UTF-8 everywhere (Windows would otherwise decode it as cp1252).
+UTF8 = dict(text=True, encoding="utf-8", errors="replace")
 
 
 def yt_dlp_cmd():
@@ -439,7 +446,7 @@ class Loader(QThread):
             info = json.loads(subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries",
                  "format=duration,bit_rate:format_tags:stream=codec_type,codec_name:stream_tags",
-                 "-of", "json", p], capture_output=True, text=True, check=True).stdout)
+                 "-of", "json", p], capture_output=True, check=True, **UTF8, **NOWIN).stdout)
             total = float(info["format"]["duration"])
             tags = {k.lower(): v for k, v in info["format"].get("tags", {}).items()}
             streams = info.get("streams", [])
@@ -448,7 +455,7 @@ class Loader(QThread):
                     tags.setdefault(k.lower(), v)
             raw = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", p, "-vn", "-ac", "1",
                                   "-ar", str(SR), "-f", "s16le", "-"],
-                                 capture_output=True, check=True).stdout
+                                 capture_output=True, check=True, **NOWIN).stdout
             samples = np.frombuffer(raw, dtype=np.int16)
             n = samples.size // BLK
             peaks = np.abs(samples[:n * BLK].reshape(n, BLK).astype(np.int32)).max(1) / 32768.0
@@ -458,7 +465,7 @@ class Loader(QThread):
             if any(s.get("codec_type") == "video" for s in streams):
                 cover = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", p, "-an", "-frames:v", "1",
                                         "-c:v", "copy", "-f", "image2pipe", "-"],
-                                       capture_output=True).stdout
+                                       capture_output=True, **NOWIN).stdout
             if not cover:
                 for f in sorted(self.path.parent.iterdir()):
                     if f.suffix.lower() in (".jpg", ".jpeg", ".png") and re.search(
@@ -505,6 +512,10 @@ class Exporter(QThread):
             if out.suffix.lower() == ".mp3":
                 tags += ["-id3v2_version", "3"]
             acodec = ["-c:a", "copy"] if self.acodec is None else self.acodec
+            if self.acodec is None and out.suffix.lower() == ".flac":
+                # A stream-copied FLAC keeps the source's header, so players would show the length of the
+                # whole recording. Re-encoding FLAC is lossless (same samples, same bit depth) and fixes it.
+                acodec = ["-c:a", "flac"]
             head = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y"]
             ok = False
             if self.cover_path and out.suffix.lower() not in (".opus", ".ogg"):
@@ -512,11 +523,11 @@ class Exporter(QThread):
                                                      "-map", "1:v", "-c:v", "copy",
                                                      "-disposition:v", "attached_pic"]
                                     + acodec + tags + [str(out)],
-                                    stdin=subprocess.DEVNULL, capture_output=True).returncode == 0
+                                    stdin=subprocess.DEVNULL, capture_output=True, **NOWIN).returncode == 0
             err = ""
             if not ok:
                 r = subprocess.run(head + inputs + ["-map", "0:a"] + acodec + tags + [str(out)],
-                                   stdin=subprocess.DEVNULL, capture_output=True)
+                                   stdin=subprocess.DEVNULL, capture_output=True, **NOWIN)
                 ok = r.returncode == 0
                 err = r.stderr.decode(errors="replace").strip().splitlines()[-1:] if not ok else []
                 err = err[0] if err else ""
@@ -532,8 +543,7 @@ def embed_ogg_cover(path, cover_path):
         from mutagen import File
         from mutagen.flac import Picture
         data = Path(cover_path).read_bytes()
-        img = QPixmap()
-        img.loadFromData(data)
+        img = QImage.fromData(data)   # not QPixmap: this runs in the export thread
         pic = Picture()
         pic.type, pic.data = 3, data
         pic.mime = "image/png" if image_ext(data) == ".png" else "image/jpeg"
@@ -1508,7 +1518,7 @@ class YtInfo(QThread):
             if not cmd:
                 raise FileNotFoundError
             r = subprocess.run(cmd + ["-J", "--no-playlist", "--no-warnings", self.url],
-                               capture_output=True, text=True, timeout=90, stdin=subprocess.DEVNULL)
+                               capture_output=True, timeout=90, stdin=subprocess.DEVNULL, **UTF8, **NOWIN)
             if r.returncode:
                 err = (r.stderr.strip().splitlines() or ["unknown error"])[-1]
                 self.done.emit(None, err.replace("ERROR: ", ""))
@@ -1550,7 +1560,7 @@ class YtDownload(QThread):
         cmd.append(self.url)
         try:
             self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                         stdin=subprocess.DEVNULL, text=True, bufsize=1)
+                                         stdin=subprocess.DEVNULL, bufsize=1, **UTF8, **NOWIN)
         except FileNotFoundError:
             self.done.emit("", "yt-dlp is not installed")
             return
@@ -1563,7 +1573,7 @@ class YtDownload(QThread):
                 self.progress.emit(float(m.group(1)), rest)
             elif line.startswith("[ExtractAudio]"):
                 self.progress.emit(-1.0, "Converting…")
-            elif line.startswith("/") and Path(line).exists():
+            elif Path(line).is_absolute() and Path(line).exists():
                 path = line
             elif line:
                 last = line
@@ -2277,8 +2287,11 @@ class Main(QMainWindow):
                     lambda: QMessageBox.about(self, "About Cuttycat",
                                               f"<b>Cuttycat</b> {__version__}<br>Splits long recordings into tracks.<br>"
                                               "Made by Twongo<br><br>"
-                                              "MIT license. Uses ffmpeg and yt-dlp.<br>"
+                                              "License: GNU GPL version 3 or later. Uses ffmpeg and yt-dlp.<br>"
                                               "Covers from iTunes, Deezer, MusicBrainz / Cover Art Archive."))
+        m.addSeparator()
+        m.addAction(icon("help-donate", "emblem-favorite"), "Buy me a coffee",
+                    lambda: QDesktopServices.openUrl(QUrl(KOFI_URL)))
 
     def _build_ui(self):
         T = self.T
@@ -2771,6 +2784,9 @@ class Main(QMainWindow):
 
     def show_in_folder(self, path):
         """Open the file manager with the file selected (falls back to just the folder)."""
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", str(path)])
+            return
         try:
             from PySide6.QtDBus import QDBusConnection, QDBusMessage
             msg = QDBusMessage.createMethodCall("org.freedesktop.FileManager1", "/org/freedesktop/FileManager1",
@@ -3710,7 +3726,19 @@ class Main(QMainWindow):
 
 def main():
     import os
+    if sys.platform == "win32":
+        # yt-dlp (system or bundled) should write UTF-8 into our pipes, see UTF8.
+        os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+        # Look for ffmpeg in the ffmpeg\ folder next to Cuttycat.exe (or next to the exe itself) before PATH.
+        here = Path(sys.executable if getattr(sys, "frozen", False) else sys.argv[0]).resolve().parent
+        os.environ["PATH"] = os.pathsep.join([str(here / "ffmpeg"), str(here / "ffmpeg" / "bin"), str(here),
+                                              os.environ.get("PATH", "")])
     if len(sys.argv) > 1 and sys.argv[1] == "--run-yt-dlp":   # see yt_dlp_cmd()
+        for s in (sys.stdout, sys.stderr):
+            try:
+                s.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
         import yt_dlp
         sys.exit(yt_dlp.main(sys.argv[2:]))
     # Use the desktop's own file dialogs (KDE, GNOME …) through the XDG portal when available.
@@ -3734,8 +3762,10 @@ def main():
     apply_theme(app, T)
     missing = [t for t in ("ffmpeg", "ffprobe") if not shutil.which(t)]
     if missing:
-        QMessageBox.critical(None, APP, "Cuttycat needs ffmpeg and ffprobe, but they are not on your PATH.\n\n"
-                                        "Install ffmpeg and start Cuttycat again.")
+        how = ("Install it (for example: winget install Gyan.FFmpeg) or put ffmpeg.exe and "
+               "ffprobe.exe next to Cuttycat.exe. Then start Cuttycat again." if sys.platform == "win32"
+               else "Install ffmpeg and start Cuttycat again.")
+        QMessageBox.critical(None, APP, "Cuttycat needs ffmpeg and ffprobe, but they are not on your PATH.\n\n" + how)
         sys.exit(1)
     w = Main(T)
     w.e_artist.textChanged.connect(lambda _: w.update_now_playing())

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cuttycat"
-version = "0.1.0"
+dynamic = ["version"]   # read from cuttycat/__init__.py
 description = "Split a full album, DJ mix or playlist rip into tracks at the gaps"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = "GPL-3.0-or-later"
 dependencies = ["PySide6>=6.5", "numpy"]
 
 [project.optional-dependencies]
@@ -21,6 +21,9 @@ cuttycat = "cuttycat.app:main"
 
 [tool.setuptools]
 packages = ["cuttycat", "cuttycat.assets", "cuttycat.assets.fonts"]
+
+[tool.setuptools.dynamic]
+version = {attr = "cuttycat.__version__"}
 
 [tool.setuptools.package-data]
 cuttycat = ["assets/*.png", "assets/fonts/*"]

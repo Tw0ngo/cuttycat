@@ -1,0 +1,79 @@
+# Push a tag like v0.2.0 to build and publish a release; "Run workflow" only builds.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pytest -e .
+      - run: pytest -q tests
+
+  linux:
+    needs: test
+    runs-on: ubuntu-22.04          # older glibc, so the binary runs on more distributions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3
+      - run: pip install ".[all]" pyinstaller
+      - run: sh packaging/build-standalone.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: dist/cuttycat }
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Get ffmpeg (gyan.dev essentials, checksum verified)
+        shell: pwsh
+        run: |
+          $u = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          Invoke-WebRequest $u -OutFile ffmpeg.zip
+          $want = (Invoke-RestMethod "$u.sha256").Trim()
+          $have = (Get-FileHash ffmpeg.zip -Algorithm SHA256).Hash
+          if ($want -ine $have) { throw "ffmpeg checksum mismatch" }
+          Expand-Archive ffmpeg.zip ffx
+          $r = (Get-ChildItem ffx -Directory)[0].FullName
+          New-Item -ItemType Directory -Force packaging\ffmpeg | Out-Null
+          Copy-Item "$r\bin\ffmpeg.exe", "$r\bin\ffprobe.exe" packaging\ffmpeg
+          Copy-Item "$r\LICENSE" packaging\ffmpeg\LICENSE.txt
+          Copy-Item "$r\README.txt" packaging\ffmpeg\README.txt
+      - name: Make sure Inno Setup 6 is there
+        shell: pwsh
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - run: pip install ".[all]" pyinstaller
+      - shell: pwsh
+        run: .\packaging\build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/cuttycat_install.exe
+            dist/cuttycat-portable.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/cuttycat
+            out/cuttycat_install.exe
+            out/cuttycat-portable.zip

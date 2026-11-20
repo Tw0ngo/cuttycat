@@ -1,0 +1,5 @@
+# Same line endings (LF) on every system, so shell scripts and the PKGBUILD keep working
+# even when the repository is edited on Windows.
+* text=auto eol=lf
+*.png binary
+*.ico binary
