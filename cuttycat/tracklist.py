@@ -114,7 +114,7 @@ def parse_tracklist(text, order=None, sep=None, times=TIMES_AUTO, strip_junk=Tru
         line = re.sub(r"^[\s•·*▶►▸➤→♪♫]+", "", line)
         if not line or not re.search(r"\w", line):
             continue
-        lead = lead_end = trail = None
+        lead = lead_end = None
         m = LEAD_TS.match(line)
         if m and m.end() < len(line):
             lead = parse_time(m.group(1))

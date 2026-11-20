@@ -25,7 +25,8 @@ program, so a fix or feature goes into `cuttycat/` once and every version gets i
 - **New Python dependency:** add it to `pyproject.toml`, to `depends`/`optdepends` in `aur/PKGBUILD`
   (Arch package name) and, if PyInstaller misses it, to `hiddenimports` in `cuttycat.spec`.
 - **New asset (image, font):** put it in `cuttycat/assets/`. All builds pick it up from there.
-- **Platform-specific behaviour:** keep it in `cuttycat/app.py` behind `sys.platform` checks
-  (see `NOWIN`, `UTF8`, `show_in_folder`, `main`), not in the build scripts.
+- **Platform-specific behaviour:** keep it in the code behind `sys.platform` checks
+  (see `NOWIN` and `UTF8` in `common.py`, `show_in_folder` in `window.py`, `main` in `app.py`),
+  not in the build scripts.
 - **Using another Qt module:** remove it from `EXCLUDES`/`DROP` in `cuttycat.spec`, otherwise the
   standalone builds leave it out.
